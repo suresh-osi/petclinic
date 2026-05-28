@@ -4,7 +4,7 @@ yum update -y
 
 yum install git -y
 
-amazon-linux-extras install java-openjdk17 -y
+amazon-linux-extras install java-openjdk11 -y
 
 cd /opt
 
