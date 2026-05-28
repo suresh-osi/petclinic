@@ -1,19 +1,33 @@
 #!/bin/bash
+set -e
+exec > /var/log/userdata.log 2>&1
 
-yum update -y
+echo "=== Starting PetClinic setup ==="
 
-yum install git -y
+apt-get update -y
+apt-get install -y git curl
 
-amazon-linux-extras install java-openjdk11 -y
+# Install Java 17
+apt-get install -y openjdk-17-jdk
 
+java -version
+
+# Clone the application
 cd /opt
-
 git clone https://github.com/suresh-osi/petclinic.git
-
-cd petclinic
+cd /opt/petclinic
 
 chmod +x mvnw
 
-./mvnw package
+# Set HOME so Maven wrapper can locate .m2 cache
+export HOME=/root
 
-nohup java -jar target/*.jar > app.log 2>&1 &
+echo "=== Building PetClinic ==="
+./mvnw package -DskipTests
+
+echo "=== Starting PetClinic ==="
+nohup java -jar /opt/petclinic/target/*.jar \
+  --server.port=8080 \
+  > /opt/petclinic/app.log 2>&1 &
+
+echo "PetClinic started with PID $!"
