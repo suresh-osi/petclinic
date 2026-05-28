@@ -1,5 +1,7 @@
 resource "aws_vpc" "main" {
-cidr_block = "10.0.0.0/16"
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 }
 
 resource "aws_subnet" "public_1" {
@@ -160,13 +162,7 @@ vpc_id   = aws_vpc.main.id
 
 health_check {
 path                = "/"
-protocol            = "HTTP"
-port                = "traffic-port"
-healthy_threshold   = 2
-unhealthy_threshold = 3
-interval            = 30
-timeout             = 5
-matcher             = "200"
+
 }
 }
 
