@@ -54,3 +54,6 @@ crash.log
 terraform.tfvars
 *.tfvars
 .terraform.lock.hcl
+
+# Kiro MCP settings (contains secrets)
+.kiro/settings/mcp.json
