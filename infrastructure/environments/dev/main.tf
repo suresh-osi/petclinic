@@ -106,7 +106,33 @@ subnet_id              = aws_subnet.public_1.id
 vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 
 user_data_replace_on_change = true
-user_data = file("${path.module}/userdata.sh")
+user_data = <<-EOF
+#!/bin/bash
+set -e
+exec > /var/log/userdata.log 2>&1
+
+echo "=== Starting PetClinic setup ==="
+
+apt-get update -y
+apt-get install -y git curl openjdk-17-jdk
+
+java -version
+
+cd /opt
+git clone https://github.com/suresh-osi/petclinic.git
+cd /opt/petclinic
+
+chmod +x mvnw
+export HOME=/root
+
+echo "=== Building PetClinic ==="
+./mvnw package -DskipTests
+
+echo "=== Starting PetClinic ==="
+nohup java -jar /opt/petclinic/target/*.jar --server.port=8080 > /opt/petclinic/app.log 2>&1 &
+
+echo "PetClinic started with PID $!"
+EOF
 
 tags = {
 Name = "petclinic-server"
@@ -133,7 +159,14 @@ protocol = "HTTP"
 vpc_id   = aws_vpc.main.id
 
 health_check {
-path = "/"
+path                = "/"
+protocol            = "HTTP"
+port                = "traffic-port"
+healthy_threshold   = 2
+unhealthy_threshold = 3
+interval            = 30
+timeout             = 5
+matcher             = "200"
 }
 }
 
