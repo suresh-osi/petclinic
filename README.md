@@ -173,6 +173,101 @@ The [issue tracker](https://github.com/spring-projects/spring-petclinic/issues) 
 For pull requests, editor preferences are available in the [editor config](.editorconfig) for easy use in common text editors. Read more and download plugins at <https://editorconfig.org>. All commits must include a __Signed-off-by__ trailer at the end of each commit message to indicate that the contributor agrees to the Developer Certificate of Origin.
 For additional details, please refer to the blog post [Hello DCO, Goodbye CLA: Simplifying Contributions to Spring](https://spring.io/blog/2025/01/06/hello-dco-goodbye-cla-simplifying-contributions-to-spring).
 
+## AWS Infrastructure (Terraform)
+
+The `infrastructure/environments/dev/` directory contains Terraform configuration for deploying PetClinic to AWS.
+
+### Terraform File Structure
+
+| File | Contents |
+|------|----------|
+| `vpc.tf` | VPC, subnets, internet gateway, route tables, and route table associations |
+| `main.tf` | Security groups, EC2 instance, ALB, target group, and listener |
+| `variables.tf` | Input variable declarations |
+| `outputs.tf` | Output values (e.g., ALB DNS name) |
+| `provider.tf` | AWS provider configuration |
+| `userdata.sh` | EC2 bootstrap script — installs Java 17, clones the repo, builds and starts the app |
+
+### Architecture
+
+| Component | Details |
+|-----------|---------|
+| VPC | `10.0.0.0/16`, DNS support enabled |
+| Subnets | Two public subnets in `ap-south-1a` and `ap-south-1b` |
+| EC2 | Ubuntu 22.04, runs the Spring Boot JAR directly on port 8080 |
+| ALB | Public-facing, HTTP port 80, forwards to EC2 port 8080 |
+| Target Group | Port 8080, HTTP health checks |
+
+### Configurable Variables
+
+All infrastructure settings are parameterized in `variables.tf`. You can override any of these in `terraform.tfvars` or via `-var` flags.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `aws_region` | `ap-south-1` | AWS region to deploy resources |
+| `instance_type` | `t3.micro` | EC2 instance type |
+| `vpc_cidr` | `10.0.0.0/16` | CIDR block for the VPC |
+| `public_subnet_1_cidr` | `10.0.1.0/24` | CIDR block for public subnet 1 |
+| `public_subnet_2_cidr` | `10.0.2.0/24` | CIDR block for public subnet 2 |
+| `availability_zone_1` | `ap-south-1a` | AZ for public subnet 1 |
+| `availability_zone_2` | `ap-south-1b` | AZ for public subnet 2 |
+| `app_port` | `8080` | Port the application listens on |
+| `alb_listener_port` | `80` | Port the ALB listener exposes |
+| `health_check_path` | `/` | ALB target group health check path |
+| `alb_name` | `petclinic-alb` | Name of the Application Load Balancer |
+| `target_group_name` | `petclinic-tg` | Name of the ALB target group |
+| `ec2_name_tag` | `petclinic-server` | Name tag applied to the EC2 instance |
+| `ssh_cidr` | `0.0.0.0/0` | CIDR allowed for SSH access |
+| `ubuntu_ami_owner` | `099720109477` | AWS account ID of the Ubuntu AMI owner (Canonical) |
+| `ubuntu_ami_filter` | `ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*` | Name filter for the Ubuntu AMI lookup |
+| `internet_route_cidr` | `0.0.0.0/0` | Destination CIDR for the default internet route in the VPC route table |
+| `alb_ingress_cidr` | `0.0.0.0/0` | CIDR block allowed for ALB HTTP ingress |
+| `alb_egress_cidr` | `0.0.0.0/0` | CIDR block allowed for ALB egress |
+| `ec2_egress_cidr` | `0.0.0.0/0` | CIDR block allowed for EC2 egress |
+
+Example — deploy to a different region with a larger instance:
+
+```bash
+terraform apply -var="aws_region=us-east-1" -var="instance_type=t3.small"
+```
+
+### Deploying
+
+```bash
+cd infrastructure/environments/dev
+terraform init
+terraform apply
+```
+
+### Security Groups
+
+Security group rules are fully parameterized and controlled through `variables.tf`.
+
+**ALB Security Group (`alb_sg`)**
+
+| Direction | Port | Source | Controlled by |
+|-----------|------|--------|---------------|
+| Inbound | `var.alb_listener_port` (default: 80) | `0.0.0.0/0` | `alb_listener_port` variable |
+| Outbound | All | `0.0.0.0/0` | — |
+
+**EC2 Security Group (`ec2_sg`)**
+
+| Direction | Port | Source | Controlled by |
+|-----------|------|--------|---------------|
+| Inbound | `var.app_port` (default: 8080) | ALB security group only | `app_port` variable |
+| Inbound | 22 (SSH) | `var.ssh_cidr` (default: `0.0.0.0/0`) | `ssh_cidr` variable |
+| Outbound | All | `0.0.0.0/0` | — |
+
+To restrict SSH access to a specific IP range, set `ssh_cidr` in `terraform.tfvars`:
+
+```hcl
+ssh_cidr = "203.0.113.0/24"
+```
+
+### Health Check
+
+The ALB target group health check is configured to use path `/`, which maps to the Spring PetClinic root endpoint and returns HTTP 200. This ensures ALB targets report healthy after the application starts.
+
 ## License
 
 The Spring PetClinic sample application is released under version 2.0 of the [Apache License](https://www.apache.org/licenses/LICENSE-2.0).
