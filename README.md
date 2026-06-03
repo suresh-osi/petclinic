@@ -205,7 +205,7 @@ All infrastructure settings are parameterized in `variables.tf`. You can overrid
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `aws_region` | `ap-south-1` | AWS region to deploy resources |
-| `instance_type` | `t3.micro` | EC2 instance type |
+| `instance_type` | `t3.small` | EC2 instance type |
 | `vpc_cidr` | `10.0.0.0/16` | CIDR block for the VPC |
 | `public_subnet_1_cidr` | `10.0.1.0/24` | CIDR block for public subnet 1 |
 | `public_subnet_2_cidr` | `10.0.2.0/24` | CIDR block for public subnet 2 |
@@ -224,6 +224,9 @@ All infrastructure settings are parameterized in `variables.tf`. You can overrid
 | `alb_ingress_cidr` | `0.0.0.0/0` | CIDR block allowed for ALB HTTP ingress |
 | `alb_egress_cidr` | `0.0.0.0/0` | CIDR block allowed for ALB egress |
 | `ec2_egress_cidr` | `0.0.0.0/0` | CIDR block allowed for EC2 egress |
+| `newrelic_external_id` | `""` | External ID for NewRelic IAM role trust policy |
+| `newrelic_license_key` | `""` | NewRelic Ingest License Key for log forwarding (sensitive) |
+| `newrelic_account_id` | `8131360` | NewRelic Account ID |
 
 Example — deploy to a different region with a larger instance:
 
@@ -266,8 +269,66 @@ ssh_cidr = "203.0.113.0/24"
 
 ### Health Check
 
-The ALB target group health check is configured to use path `/`, which maps to the Spring PetClinic root endpoint and returns HTTP 200. This ensures ALB targets report healthy after the application starts.
+> ⚠️ **Intentional Misconfiguration (Demo/Training):** The health check path in `alb.tf` is currently hardcoded to `/nonexistent-health-check` instead of referencing `var.health_check_path`. This causes ALB targets to report unhealthy and results in HTTP 503 responses — the intended broken state for RCA training.
+>
+> **Root cause:** `alb.tf` uses `path = "/nonexistent-health-check"` instead of `path = var.health_check_path`.
+>
+> **Fix:** Restore `alb.tf` to use `path = var.health_check_path`, then ensure `terraform.tfvars` has `health_check_path = "/"`. See the [ALB Health Check Failure Playbook](.kiro/playbooks/alb-healthcheck-failure.md) for the full RCA and remediation steps.
+
+When correctly configured, the ALB target group health check uses path `/`, which maps to the Spring PetClinic root endpoint and returns HTTP 200, ensuring ALB targets report healthy after the application starts.
+
+### NewRelic Integration
+
+NewRelic can be integrated with this infrastructure to monitor CloudWatch metrics. To enable:
+
+1. Follow the setup steps in [`newrelic-setup.md`](infrastructure/environments/dev/newrelic-setup.md)
+2. Set the required variables in `terraform.tfvars`:
+
+```hcl
+newrelic_external_id = "YOUR-EXTERNAL-ID-HERE"
+newrelic_account_id  = "YOUR-ACCOUNT-ID"
+```
+
+For the license key (sensitive), use an environment variable instead of `terraform.tfvars`:
+
+```bash
+export TF_VAR_newrelic_license_key="YOUR-LICENSE-KEY"
+terraform apply
+```
+
+The NewRelic CloudWatch integration role ARN is available in Terraform outputs after apply.
+
+**Note:** `newrelic_license_key` is marked `sensitive = true` — never commit it to source control. With an empty `newrelic_external_id` (the default), the IAM trust policy will not allow NewRelic to assume the role.
+
+For more details, see the [NewRelic AWS integration documentation](https://docs.newrelic.com/docs/aws-integrations/).
 
 ## License
 
 The Spring PetClinic sample application is released under version 2.0 of the [Apache License](https://www.apache.org/licenses/LICENSE-2.0).
+### Security Groups
+
+Security group rules are fully parameterized and controlled through `variables.tf`.
+
+**ALB Security Group (`alb_sg`)**
+
+| Direction | Port | Source | Controlled by |
+|-----------|------|--------|---------------|
+| Inbound | `var.alb_listener_port` (default: 80) | `0.0.0.0/0` | `alb_listener_port` variable |
+| Outbound | All | `0.0.0.0/0` | — |
+
+**EC2 Security Group (`ec2_sg`)**
+
+| Direction | Port | Source | Controlled by |
+|-----------|------|--------|---------------|
+| Inbound | `var.app_port` (default: 8080) | ALB security group only | `app_port` variable |
+| Inbound | 22 (SSH) | `var.ssh_cidr` (default: `0.0.0.0/0`) | `ssh_cidr` variable |
+| Outbound | All | `0.0.0.0/0` | — |
+
+**Security Best Practice:**
+The EC2 security group is configured to accept inbound traffic on the application port **only from the ALB security group**, not from public CIDR blocks. This restricts direct access to the EC2 instance and ensures all traffic flows through the load balancer.
+
+To restrict SSH access to a specific IP range, set `ssh_cidr` in `terraform.tfvars`:
+
+```hcl
+ssh_cidr = "203.0.113.0/24"
+```

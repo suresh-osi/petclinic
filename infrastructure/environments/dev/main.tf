@@ -4,3 +4,5 @@
 # Include all Terraform configuration files
 # All .tf files in this directory are automatically included by Terraform
 
+data "aws_caller_identity" "current" {}
+
