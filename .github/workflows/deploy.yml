@@ -139,11 +139,33 @@ jobs:
           # Lambda
           tf_import "aws_lambda_function.newrelic_log_forwarder"  "NewRelic-PetClinic-LogForwarder"
 
+          # Lambda Permissions (CloudWatch → Lambda)
+          tf_import "aws_lambda_permission.allow_cloudwatch_app"           "NewRelic-PetClinic-LogForwarder/AllowCWLogsApp"
+          tf_import "aws_lambda_permission.allow_cloudwatch_apache_access" "NewRelic-PetClinic-LogForwarder/AllowCWLogsApacheAccess"
+          tf_import "aws_lambda_permission.allow_cloudwatch_apache_error"  "NewRelic-PetClinic-LogForwarder/AllowCWLogsApacheError"
+          tf_import "aws_lambda_permission.allow_cloudwatch_userdata"      "NewRelic-PetClinic-LogForwarder/AllowCWLogsUserdata"
+
           # CloudWatch Log Groups
           tf_import "aws_cloudwatch_log_group.petclinic_app"           "petclinic/application-logs"
           tf_import "aws_cloudwatch_log_group.petclinic_apache_access" "petclinic/apache-access-logs"
           tf_import "aws_cloudwatch_log_group.petclinic_apache_error"  "petclinic/apache-error-logs"
           tf_import "aws_cloudwatch_log_group.petclinic_userdata"      "petclinic/userdata-logs"
+
+          # CloudWatch Subscription Filters
+          tf_import "aws_cloudwatch_log_subscription_filter.petclinic_app_to_newrelic"           "petclinic/application-logs:petclinic-app-to-newrelic"
+          tf_import "aws_cloudwatch_log_subscription_filter.petclinic_apache_access_to_newrelic" "petclinic/apache-access-logs:petclinic-apache-access-to-newrelic"
+          tf_import "aws_cloudwatch_log_subscription_filter.petclinic_apache_error_to_newrelic"  "petclinic/apache-error-logs:petclinic-apache-error-to-newrelic"
+          tf_import "aws_cloudwatch_log_subscription_filter.petclinic_userdata_to_newrelic"      "petclinic/userdata-logs:petclinic-userdata-to-newrelic"
+
+          # IAM Role Policy Attachments
+          tf_import "aws_iam_role_policy_attachment.cloudwatch_agent_policy"   "petclinic-server-cloudwatch-agent-role/arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+          tf_import "aws_iam_role_policy_attachment.newrelic_cloudwatch_policy" "NewRelic-CloudWatch-Integration-Role/arn:aws:iam::633426742056:policy/NewRelic-CloudWatch-Integration-Policy"
+
+          # IAM Role Inline Policy
+          tf_import "aws_iam_role_policy.newrelic_lambda_policy" "NewRelic-LogForwarder-Lambda-Role:NewRelic-LogForwarder-Policy"
+
+          # Target Group Attachment
+          tf_import "aws_lb_target_group_attachment.attach" "arn:aws:elasticloadbalancing:ap-south-1:633426742056:targetgroup/petclinic-tg/580edb451b006e05/i-026ef89c4cb6fed01"
 
           echo "✅ Import phase complete"
 
