@@ -87,7 +87,7 @@ jobs:
           TF_VAR_newrelic_external_id: ${{ secrets.TF_VAR_NEWRELIC_EXTERNAL_ID }}
         run: terraform init -upgrade -reconfigure
 
-      - name: Import drifted AWS resources into Terraform state (idempotent)
+      - name: Import all drifted AWS resources into Terraform state (idempotent)
         working-directory: ${{ env.TF_DIR }}
         env:
           TF_VAR_newrelic_license_key: ${{ secrets.TF_VAR_NEWRELIC_LICENSE_KEY }}
@@ -100,60 +100,67 @@ jobs:
               echo "✅ $resource already in state, skipping."
             else
               echo "⬇️  Importing $resource → $id"
-              terraform import "$resource" "$id" && echo "✅ Imported $resource" || echo "⚠️  Import failed for $resource (may not exist)"
+              terraform import "$resource" "$id" && echo "✅ Imported $resource" || echo "⚠️  Import failed for $resource"
             fi
           }
 
+          # --- VPC ---
+          import_if_missing "aws_vpc.main" "vpc-0f6d587e89c49eab6"
+
+          # --- Subnets ---
+          import_if_missing "aws_subnet.public_1" "subnet-0068b88453b5bd14f"
+          import_if_missing "aws_subnet.public_2" "subnet-06adc71dc4b6d567d"
+
+          # --- Internet Gateway ---
+          import_if_missing "aws_internet_gateway.igw" "igw-009921ea27a049433"
+
+          # --- Route Table ---
+          import_if_missing "aws_route_table.public" "rtb-0f4a91be33ebc5c01"
+
+          # --- Route Table Associations ---
+          import_if_missing "aws_route_table_association.a1" "rtbassoc-09a669d87e96dfdcf"
+          import_if_missing "aws_route_table_association.a2" "rtbassoc-0f75e245be5dbf823"
+
+          # --- Security Groups ---
+          import_if_missing "aws_security_group.alb_sg" "sg-0b2b8cb38458f3f49"
+          import_if_missing "aws_security_group.ec2_sg" "sg-0fc2ee50aa5187e06"
+
           # --- ALB ---
-          ALB_ARN=$(aws elbv2 describe-load-balancers --names petclinic-alb --query "LoadBalancers[0].LoadBalancerArn" --output text 2>/dev/null || echo "")
-          [ -n "$ALB_ARN" ] && import_if_missing "aws_lb.alb" "$ALB_ARN"
+          import_if_missing "aws_lb.alb" "arn:aws:elasticloadbalancing:ap-south-1:633426742056:loadbalancer/app/petclinic-alb/11485c59e665a9d2"
 
           # --- Target Group ---
-          TG_ARN=$(aws elbv2 describe-target-groups --names petclinic-tg --query "TargetGroups[0].TargetGroupArn" --output text 2>/dev/null || echo "")
-          [ -n "$TG_ARN" ] && import_if_missing "aws_lb_target_group.tg" "$TG_ARN"
+          import_if_missing "aws_lb_target_group.tg" "arn:aws:elasticloadbalancing:ap-south-1:633426742056:targetgroup/petclinic-tg/580edb451b006e05"
 
           # --- ALB Listener ---
-          if [ -n "$ALB_ARN" ]; then
-            LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn "$ALB_ARN" --query "Listeners[0].ListenerArn" --output text 2>/dev/null || echo "")
-            [ -n "$LISTENER_ARN" ] && import_if_missing "aws_lb_listener.listener" "$LISTENER_ARN"
-          fi
+          import_if_missing "aws_lb_listener.listener" "arn:aws:elasticloadbalancing:ap-south-1:633426742056:listener/app/petclinic-alb/11485c59e665a9d2/95f471895849af84"
 
           # --- IAM Role: CloudWatch Agent (EC2) ---
-          ROLE=$(aws iam get-role --role-name petclinic-server-cloudwatch-agent-role --query "Role.RoleName" --output text 2>/dev/null || echo "")
-          [ -n "$ROLE" ] && import_if_missing "aws_iam_role.cloudwatch_agent_role" "petclinic-server-cloudwatch-agent-role"
+          import_if_missing "aws_iam_role.cloudwatch_agent_role" "petclinic-server-cloudwatch-agent-role"
+
+          # --- IAM Instance Profile ---
+          import_if_missing "aws_iam_instance_profile.cloudwatch_agent_profile" "petclinic-server-cloudwatch-agent-profile"
 
           # --- IAM Role: NewRelic CloudWatch Integration ---
-          ROLE=$(aws iam get-role --role-name NewRelic-CloudWatch-Integration-Role --query "Role.RoleName" --output text 2>/dev/null || echo "")
-          [ -n "$ROLE" ] && import_if_missing "aws_iam_role.newrelic_cloudwatch_role" "NewRelic-CloudWatch-Integration-Role"
+          import_if_missing "aws_iam_role.newrelic_cloudwatch_role" "NewRelic-CloudWatch-Integration-Role"
 
           # --- IAM Policy: NewRelic CloudWatch ---
           POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='NewRelic-CloudWatch-Integration-Policy'].Arn" --output text 2>/dev/null || echo "")
           [ -n "$POLICY_ARN" ] && import_if_missing "aws_iam_policy.newrelic_cloudwatch_policy" "$POLICY_ARN"
 
           # --- IAM Role: NewRelic Lambda ---
-          ROLE=$(aws iam get-role --role-name NewRelic-LogForwarder-Lambda-Role --query "Role.RoleName" --output text 2>/dev/null || echo "")
-          [ -n "$ROLE" ] && import_if_missing "aws_iam_role.newrelic_lambda_role" "NewRelic-LogForwarder-Lambda-Role"
-
-          # --- CloudWatch Log Groups ---
-          for LG in "petclinic/application-logs" "petclinic/apache-access-logs" "petclinic/apache-error-logs" "petclinic/userdata-logs"; do
-            EXISTS=$(aws logs describe-log-groups --log-group-name-prefix "$LG" --query "logGroups[?logGroupName=='$LG'].logGroupName" --output text 2>/dev/null || echo "")
-            if [ -n "$EXISTS" ]; then
-              case "$LG" in
-                "petclinic/application-logs")   import_if_missing "aws_cloudwatch_log_group.petclinic_app" "$LG" ;;
-                "petclinic/apache-access-logs") import_if_missing "aws_cloudwatch_log_group.petclinic_apache_access" "$LG" ;;
-                "petclinic/apache-error-logs")  import_if_missing "aws_cloudwatch_log_group.petclinic_apache_error" "$LG" ;;
-                "petclinic/userdata-logs")      import_if_missing "aws_cloudwatch_log_group.petclinic_userdata" "$LG" ;;
-              esac
-            fi
-          done
-
-          # --- IAM Instance Profile ---
-          PROFILE=$(aws iam get-instance-profile --instance-profile-name petclinic-server-cloudwatch-agent-profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "")
-          [ -n "$PROFILE" ] && import_if_missing "aws_iam_instance_profile.cloudwatch_agent_profile" "petclinic-server-cloudwatch-agent-profile"
+          import_if_missing "aws_iam_role.newrelic_lambda_role" "NewRelic-LogForwarder-Lambda-Role"
 
           # --- Lambda Function ---
-          LAMBDA=$(aws lambda get-function --function-name NewRelic-PetClinic-LogForwarder --query "Configuration.FunctionArn" --output text 2>/dev/null || echo "")
-          [ -n "$LAMBDA" ] && import_if_missing "aws_lambda_function.newrelic_log_forwarder" "NewRelic-PetClinic-LogForwarder"
+          import_if_missing "aws_lambda_function.newrelic_log_forwarder" "NewRelic-PetClinic-LogForwarder"
+
+          # --- EC2 Instance ---
+          import_if_missing "aws_instance.petclinic" "i-026ef89c4cb6fed01"
+
+          # --- CloudWatch Log Groups ---
+          import_if_missing "aws_cloudwatch_log_group.petclinic_app"           "petclinic/application-logs"
+          import_if_missing "aws_cloudwatch_log_group.petclinic_apache_access" "petclinic/apache-access-logs"
+          import_if_missing "aws_cloudwatch_log_group.petclinic_apache_error"  "petclinic/apache-error-logs"
+          import_if_missing "aws_cloudwatch_log_group.petclinic_userdata"      "petclinic/userdata-logs"
 
           echo "--- Import phase complete ---"
 
