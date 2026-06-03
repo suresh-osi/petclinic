@@ -105,17 +105,20 @@ jobs:
           }
 
           # --- VPC ---
-          import_if_missing "aws_vpc.main" "vpc-0f6d587e89c49eab6"
+          import_if_missing "aws_vpc.main"            "vpc-0f6d587e89c49eab6"
 
           # --- Subnets ---
-          import_if_missing "aws_subnet.public_1" "subnet-0068b88453b5bd14f"
-          import_if_missing "aws_subnet.public_2" "subnet-06adc71dc4b6d567d"
+          import_if_missing "aws_subnet.public_1"     "subnet-0068b88453b5bd14f"
+          import_if_missing "aws_subnet.public_2"     "subnet-06adc71dc4b6d567d"
 
-          # --- Internet Gateway ---
-          import_if_missing "aws_internet_gateway.igw" "igw-009921ea27a049433"
+          # --- Internet Gateway (resource name: gw) ---
+          import_if_missing "aws_internet_gateway.gw" "igw-009921ea27a049433"
 
-          # --- Route Table ---
-          import_if_missing "aws_route_table.public" "rtb-0f4a91be33ebc5c01"
+          # --- Route Table (resource name: rt) ---
+          import_if_missing "aws_route_table.rt"      "rtb-0f4a91be33ebc5c01"
+
+          # --- Route (internet default route) ---
+          import_if_missing "aws_route.internet"      "rtb-0f4a91be33ebc5c01_0.0.0.0/0"
 
           # --- Route Table Associations ---
           import_if_missing "aws_route_table_association.a1" "rtbassoc-09a669d87e96dfdcf"
@@ -135,20 +138,20 @@ jobs:
           import_if_missing "aws_lb_listener.listener" "arn:aws:elasticloadbalancing:ap-south-1:633426742056:listener/app/petclinic-alb/11485c59e665a9d2/95f471895849af84"
 
           # --- IAM Role: CloudWatch Agent (EC2) ---
-          import_if_missing "aws_iam_role.cloudwatch_agent_role" "petclinic-server-cloudwatch-agent-role"
+          import_if_missing "aws_iam_role.cloudwatch_agent_role"        "petclinic-server-cloudwatch-agent-role"
 
           # --- IAM Instance Profile ---
           import_if_missing "aws_iam_instance_profile.cloudwatch_agent_profile" "petclinic-server-cloudwatch-agent-profile"
 
           # --- IAM Role: NewRelic CloudWatch Integration ---
-          import_if_missing "aws_iam_role.newrelic_cloudwatch_role" "NewRelic-CloudWatch-Integration-Role"
+          import_if_missing "aws_iam_role.newrelic_cloudwatch_role"     "NewRelic-CloudWatch-Integration-Role"
 
           # --- IAM Policy: NewRelic CloudWatch ---
           POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='NewRelic-CloudWatch-Integration-Policy'].Arn" --output text 2>/dev/null || echo "")
           [ -n "$POLICY_ARN" ] && import_if_missing "aws_iam_policy.newrelic_cloudwatch_policy" "$POLICY_ARN"
 
           # --- IAM Role: NewRelic Lambda ---
-          import_if_missing "aws_iam_role.newrelic_lambda_role" "NewRelic-LogForwarder-Lambda-Role"
+          import_if_missing "aws_iam_role.newrelic_lambda_role"         "NewRelic-LogForwarder-Lambda-Role"
 
           # --- Lambda Function ---
           import_if_missing "aws_lambda_function.newrelic_log_forwarder" "NewRelic-PetClinic-LogForwarder"
