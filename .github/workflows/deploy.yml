@@ -147,6 +147,14 @@ jobs:
             fi
           done
 
+          # --- IAM Instance Profile ---
+          PROFILE=$(aws iam get-instance-profile --instance-profile-name petclinic-server-cloudwatch-agent-profile --query "InstanceProfile.InstanceProfileName" --output text 2>/dev/null || echo "")
+          [ -n "$PROFILE" ] && import_if_missing "aws_iam_instance_profile.cloudwatch_agent_profile" "petclinic-server-cloudwatch-agent-profile"
+
+          # --- Lambda Function ---
+          LAMBDA=$(aws lambda get-function --function-name NewRelic-PetClinic-LogForwarder --query "Configuration.FunctionArn" --output text 2>/dev/null || echo "")
+          [ -n "$LAMBDA" ] && import_if_missing "aws_lambda_function.newrelic_log_forwarder" "NewRelic-PetClinic-LogForwarder"
+
           echo "--- Import phase complete ---"
 
       - name: Terraform Validate
