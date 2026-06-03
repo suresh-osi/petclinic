@@ -85,87 +85,67 @@ jobs:
         env:
           TF_VAR_newrelic_license_key: ${{ secrets.TF_VAR_NEWRELIC_LICENSE_KEY }}
           TF_VAR_newrelic_external_id: ${{ secrets.TF_VAR_NEWRELIC_EXTERNAL_ID }}
-        run: terraform init -upgrade -reconfigure
+        run: terraform init -upgrade
 
-      - name: Import all drifted AWS resources into Terraform state (idempotent)
+      - name: Reset Terraform state and reimport all resources fresh
         working-directory: ${{ env.TF_DIR }}
         env:
           TF_VAR_newrelic_license_key: ${{ secrets.TF_VAR_NEWRELIC_LICENSE_KEY }}
           TF_VAR_newrelic_external_id: ${{ secrets.TF_VAR_NEWRELIC_EXTERNAL_ID }}
         run: |
-          import_if_missing() {
-            local resource="$1"
-            local id="$2"
-            if terraform state show "$resource" > /dev/null 2>&1; then
-              echo "✅ $resource already in state, skipping."
-            else
-              echo "⬇️  Importing $resource → $id"
-              terraform import "$resource" "$id" && echo "✅ Imported $resource" || echo "⚠️  Import failed for $resource"
-            fi
+          # Wipe S3 state to eliminate stale/partial resource IDs from previous failed runs
+          echo "🗑️  Clearing stale Terraform state from S3..."
+          aws s3 rm s3://petclinic-tfstate-633426742056/environments/dev/terraform.tfstate 2>/dev/null || echo "State already empty."
+
+          # Reinitialise after state wipe
+          terraform init -upgrade -reconfigure
+
+          echo "⬇️  Importing all existing AWS resources into fresh state..."
+
+          tf_import() {
+            echo "  importing $1 → $2"
+            terraform import "$1" "$2" || echo "⚠️  $1 import failed (resource may not exist yet)"
           }
 
-          # --- VPC ---
-          import_if_missing "aws_vpc.main"            "vpc-0f6d587e89c49eab6"
+          # Networking
+          tf_import "aws_vpc.main"                        "vpc-0f6d587e89c49eab6"
+          tf_import "aws_subnet.public_1"                 "subnet-0068b88453b5bd14f"
+          tf_import "aws_subnet.public_2"                 "subnet-06adc71dc4b6d567d"
+          tf_import "aws_internet_gateway.gw"             "igw-009921ea27a049433"
+          tf_import "aws_route_table.rt"                  "rtb-0f4a91be33ebc5c01"
+          tf_import "aws_route.internet"                  "rtb-0f4a91be33ebc5c01_0.0.0.0/0"
+          tf_import "aws_route_table_association.a1"      "rtbassoc-09a669d87e96dfdcf"
+          tf_import "aws_route_table_association.a2"      "rtbassoc-0f75e245be5dbf823"
 
-          # --- Subnets ---
-          import_if_missing "aws_subnet.public_1"     "subnet-0068b88453b5bd14f"
-          import_if_missing "aws_subnet.public_2"     "subnet-06adc71dc4b6d567d"
+          # Security Groups
+          tf_import "aws_security_group.alb_sg"           "sg-0b2b8cb38458f3f49"
+          tf_import "aws_security_group.ec2_sg"           "sg-0fc2ee50aa5187e06"
 
-          # --- Internet Gateway (resource name: gw) ---
-          import_if_missing "aws_internet_gateway.gw" "igw-009921ea27a049433"
+          # Load Balancer
+          tf_import "aws_lb.alb"                          "arn:aws:elasticloadbalancing:ap-south-1:633426742056:loadbalancer/app/petclinic-alb/11485c59e665a9d2"
+          tf_import "aws_lb_target_group.tg"              "arn:aws:elasticloadbalancing:ap-south-1:633426742056:targetgroup/petclinic-tg/580edb451b006e05"
+          tf_import "aws_lb_listener.listener"            "arn:aws:elasticloadbalancing:ap-south-1:633426742056:listener/app/petclinic-alb/11485c59e665a9d2/95f471895849af84"
 
-          # --- Route Table (resource name: rt) ---
-          import_if_missing "aws_route_table.rt"      "rtb-0f4a91be33ebc5c01"
+          # IAM
+          tf_import "aws_iam_role.cloudwatch_agent_role"          "petclinic-server-cloudwatch-agent-role"
+          tf_import "aws_iam_instance_profile.cloudwatch_agent_profile" "petclinic-server-cloudwatch-agent-profile"
+          tf_import "aws_iam_role.newrelic_cloudwatch_role"        "NewRelic-CloudWatch-Integration-Role"
+          tf_import "aws_iam_policy.newrelic_cloudwatch_policy"    "arn:aws:iam::633426742056:policy/NewRelic-CloudWatch-Integration-Policy"
+          tf_import "aws_iam_role.newrelic_lambda_role"            "NewRelic-LogForwarder-Lambda-Role"
 
-          # --- Route (internet default route) ---
-          import_if_missing "aws_route.internet"      "rtb-0f4a91be33ebc5c01_0.0.0.0/0"
+          # Compute
+          tf_import "aws_instance.petclinic"              "i-026ef89c4cb6fed01"
 
-          # --- Route Table Associations ---
-          import_if_missing "aws_route_table_association.a1" "rtbassoc-09a669d87e96dfdcf"
-          import_if_missing "aws_route_table_association.a2" "rtbassoc-0f75e245be5dbf823"
+          # Lambda
+          tf_import "aws_lambda_function.newrelic_log_forwarder"  "NewRelic-PetClinic-LogForwarder"
 
-          # --- Security Groups ---
-          import_if_missing "aws_security_group.alb_sg" "sg-0b2b8cb38458f3f49"
-          import_if_missing "aws_security_group.ec2_sg" "sg-0fc2ee50aa5187e06"
+          # CloudWatch Log Groups
+          tf_import "aws_cloudwatch_log_group.petclinic_app"           "petclinic/application-logs"
+          tf_import "aws_cloudwatch_log_group.petclinic_apache_access" "petclinic/apache-access-logs"
+          tf_import "aws_cloudwatch_log_group.petclinic_apache_error"  "petclinic/apache-error-logs"
+          tf_import "aws_cloudwatch_log_group.petclinic_userdata"      "petclinic/userdata-logs"
 
-          # --- ALB ---
-          import_if_missing "aws_lb.alb" "arn:aws:elasticloadbalancing:ap-south-1:633426742056:loadbalancer/app/petclinic-alb/11485c59e665a9d2"
-
-          # --- Target Group ---
-          import_if_missing "aws_lb_target_group.tg" "arn:aws:elasticloadbalancing:ap-south-1:633426742056:targetgroup/petclinic-tg/580edb451b006e05"
-
-          # --- ALB Listener ---
-          import_if_missing "aws_lb_listener.listener" "arn:aws:elasticloadbalancing:ap-south-1:633426742056:listener/app/petclinic-alb/11485c59e665a9d2/95f471895849af84"
-
-          # --- IAM Role: CloudWatch Agent (EC2) ---
-          import_if_missing "aws_iam_role.cloudwatch_agent_role"        "petclinic-server-cloudwatch-agent-role"
-
-          # --- IAM Instance Profile ---
-          import_if_missing "aws_iam_instance_profile.cloudwatch_agent_profile" "petclinic-server-cloudwatch-agent-profile"
-
-          # --- IAM Role: NewRelic CloudWatch Integration ---
-          import_if_missing "aws_iam_role.newrelic_cloudwatch_role"     "NewRelic-CloudWatch-Integration-Role"
-
-          # --- IAM Policy: NewRelic CloudWatch ---
-          POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='NewRelic-CloudWatch-Integration-Policy'].Arn" --output text 2>/dev/null || echo "")
-          [ -n "$POLICY_ARN" ] && import_if_missing "aws_iam_policy.newrelic_cloudwatch_policy" "$POLICY_ARN"
-
-          # --- IAM Role: NewRelic Lambda ---
-          import_if_missing "aws_iam_role.newrelic_lambda_role"         "NewRelic-LogForwarder-Lambda-Role"
-
-          # --- Lambda Function ---
-          import_if_missing "aws_lambda_function.newrelic_log_forwarder" "NewRelic-PetClinic-LogForwarder"
-
-          # --- EC2 Instance ---
-          import_if_missing "aws_instance.petclinic" "i-026ef89c4cb6fed01"
-
-          # --- CloudWatch Log Groups ---
-          import_if_missing "aws_cloudwatch_log_group.petclinic_app"           "petclinic/application-logs"
-          import_if_missing "aws_cloudwatch_log_group.petclinic_apache_access" "petclinic/apache-access-logs"
-          import_if_missing "aws_cloudwatch_log_group.petclinic_apache_error"  "petclinic/apache-error-logs"
-          import_if_missing "aws_cloudwatch_log_group.petclinic_userdata"      "petclinic/userdata-logs"
-
-          echo "--- Import phase complete ---"
+          echo "✅ Import phase complete"
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_DIR }}
