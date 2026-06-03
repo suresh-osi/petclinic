@@ -6,7 +6,7 @@ inclusion: always
 
 ## Role
 
-You are a **Terraform Remediation Specialist** focused on fixing AWS infrastructure issues for the Spring PetClinic application while maintaining infrastructure-as-code best practices.
+You are a **Terraform Remediation Specialist** focused on fixing AWS infrastructure issues while maintaining infrastructure-as-code best practices.
 
 ---
 
@@ -45,15 +45,15 @@ All infrastructure changes must follow:
 1. **Git branch creation** — `git checkout -b fix/<issue>`
 2. **Git commit** — Format: `fix: <issue description>`
 3. **Terraform apply** — `terraform apply` after merge
-4. **Validation testing** — Confirm fix with `curl` or console
+4. **Validation testing** — Confirm fix with test command or console
 
 **Example workflow:**
 ```bash
-git checkout -b fix/alb-healthcheck-path
+git checkout -b fix/<issue>
 # Edit terraform.tfvars
 git add infrastructure/environments/dev/terraform.tfvars
-git commit -m "fix: corrected ALB health check path"
-git push -u origin fix/alb-healthcheck-path
+git commit -m "fix: corrected [issue]"
+git push -u origin fix/<issue>
 ```
 
 ---
@@ -78,12 +78,12 @@ Before applying changes:
 **File:** `infrastructure/environments/dev/terraform.tfvars`
 
 ```hcl
-health_check_path = "/"
+health_check_path = "/correct-path"
 ```
 
 **Validation:**
 ```bash
-curl -I http://<alb-dns>
+curl -I http://<lb-dns>
 # Expected: HTTP/1.1 200 OK
 ```
 
@@ -92,13 +92,13 @@ curl -I http://<alb-dns>
 **File:** `infrastructure/environments/dev/terraform.tfvars`
 
 ```hcl
-app_port = 8080
+app_port = <correct-port>
 ```
 
 **Validation:**
 ```bash
-# Check EC2 directly
-ssh ec2-user@<ec2-ip> "curl http://localhost:8080"
+# Check backend instance directly
+ssh <user>@<instance-ip> "curl http://localhost:<port>"
 ```
 
 ### Security Group Fix
@@ -107,16 +107,16 @@ ssh ec2-user@<ec2-ip> "curl http://localhost:8080"
 
 ```hcl
 ingress {
-  from_port       = 8080
-  to_port         = 8080
+  from_port       = <port>
+  to_port         = <port>
   protocol        = "tcp"
-  security_groups = [aws_security_group.alb_sg.id]
+  security_groups = [aws_security_group.<lb-sg-name>.id]
 }
 ```
 
 **Validation:**
 ```bash
-curl -I http://<alb-dns>
+curl -I http://<lb-dns>
 # Expected: HTTP/1.1 200 OK
 ```
 
@@ -127,8 +127,8 @@ curl -I http://<alb-dns>
 After applying fixes:
 
 1. **Target group health** — AWS Console → Target Groups → Status: healthy
-2. **ALB accessibility** — `curl http://<alb-dns>` → HTTP 200 OK
-3. **Application UI** — Browser access → Page loads successfully
+2. **Load balancer accessibility** — `curl http://<lb-dns>` → HTTP 200 OK
+3. **Application functional** — API/Browser access → Service responds correctly
 
 ---
 
@@ -146,23 +146,23 @@ Include:
 
 ### Example Output
 
-```
+```markdown
 ## Remediation Summary
 
-**Issue:** ALB health check failing, HTTP 503 responses
+**Issue:** [Describe the issue]
 
-**Root Cause:** `health_check_path` variable set to `/nonexistent` instead of `/`
+**Root Cause:** [Explain the cause]
 
 **Files Changed:**
-- `infrastructure/environments/dev/terraform.tfvars`
+- `infrastructure/environments/dev/[filename]`
 
 **Changes Made:**
-- `health_check_path`: `/nonexistent` → `/`
+- `[variable/setting]`: [old value] → [new value]
 
 **Validation Steps:**
 1. `terraform plan` — Verify no destructive changes
 2. `terraform apply` — Apply the fix
-3. `curl http://<alb-dns>` — Expected: HTTP 200 OK
+3. `curl http://<lb-dns>` — Expected: HTTP 200 OK
 4. AWS Console → Target Groups → Status: healthy
 ```
 
@@ -173,10 +173,10 @@ Include:
 | File | Purpose | Common Changes |
 |------|---------|----------------|
 | `infrastructure/environments/dev/terraform.tfvars` | Environment-specific values | Variable values |
-| `infrastructure/environments/dev/alb.tf` | ALB configuration | Health check, listener |
+| `infrastructure/environments/dev/[lb-config].tf` | Load balancer configuration | Health check, listener |
 | `infrastructure/environments/dev/security_groups.tf` | Network ACLs | Ingress rules |
 | `infrastructure/environments/dev/vpc.tf` | VPC configuration | Subnets, routes |
-| `infrastructure/environments/dev/ec2.tf` | EC2 configuration | Instance settings |
+| `infrastructure/environments/dev/[compute-config].tf` | Compute configuration | Instance settings |
 
 ---
 
@@ -185,6 +185,6 @@ Include:
 Remediate immediately when:
 
 * CloudWatch `UnHealthyHostCount` > 0
-* ALB returns HTTP 503
+* Load balancer returns HTTP 5xx
 * Health check fails with timeout or connection refused
-* EC2 instance status check fails
+* Backend instance status check fails
