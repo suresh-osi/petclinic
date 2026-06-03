@@ -61,27 +61,28 @@ Terraform will:
 ## Step 4: Configure NewRelic Variables in Terraform
 
 1. In NewRelic, when adding the AWS integration, NewRelic will provide an External ID
-2. Update your `terraform.tfvars` file with the required values:
+2. Update your `terraform.tfvars` file with the non-sensitive values:
    ```hcl
    newrelic_external_id = "your-external-id-from-newrelic"
    newrelic_account_id  = "your-newrelic-account-id"
-   newrelic_license_key = "your-newrelic-ingest-license-key"
    ```
 
-   | Variable | Description | Where to find it |
-   |----------|-------------|-----------------|
-   | `newrelic_external_id` | Trust policy External ID | NewRelic AWS integration setup |
-   | `newrelic_account_id` | Your NewRelic account number | NewRelic account settings |
-   | `newrelic_license_key` | Ingest License Key for log **sending** | NewRelic API keys page — type: INGEST-LICENSE (`NRAL-...`) |
-   | `newrelic_user_api_key` | User API Key for log **querying** | NewRelic API keys page — type: User (`NRAK-...`) |
+   Then supply the license key via environment variable — **do not put it in `terraform.tfvars`**:
+   ```bash
+   export TF_VAR_newrelic_license_key="NRAL-your-license-key"
+   terraform apply
+   ```
+
+   | Variable | Description | Where to find it | How to supply |
+   |----------|-------------|-----------------|---------------|
+   | `newrelic_external_id` | Trust policy External ID | NewRelic AWS integration setup | `terraform.tfvars` |
+   | `newrelic_account_id` | Your NewRelic account number | NewRelic account settings | `terraform.tfvars` |
+   | `newrelic_license_key` | Ingest License Key for log **sending** | NewRelic API keys — type: INGEST-LICENSE (`NRAL-...`) | **Environment variable** `TF_VAR_newrelic_license_key` |
+   | `newrelic_user_api_key` | User API Key for log **querying** | NewRelic API keys — type: User (`NRAK-...`) | `terraform.tfvars` (optional, for local querying only) |
+
+   > **Security Note:** `newrelic_license_key` is marked `sensitive = true` in Terraform and the `terraform.tfvars` entry is intentionally left blank. Never commit a real key value to source control. Always pass it via the `TF_VAR_newrelic_license_key` environment variable or a secrets manager.
 
 3. Run `terraform apply` again to update the role with the correct external ID
-
-> **Security Note:** `newrelic_license_key` is marked `sensitive = true` in Terraform. Never commit this value to source control. Use environment variables or a secrets manager instead:
-> ```bash
-> export TF_VAR_newrelic_license_key="your-license-key"
-> terraform apply
-> ```
 
 ## Step 5: Configure CloudWatch Log Group in NewRelic
 
