@@ -37,6 +37,9 @@ jobs:
           distribution: 'adopt'
           cache: maven
 
+      - name: Make Maven wrapper executable
+        run: chmod +x mvnw
+
       - name: Build with Maven (skip tests for speed, run verify)
         run: ./mvnw -B verify --no-transfer-progress
 
