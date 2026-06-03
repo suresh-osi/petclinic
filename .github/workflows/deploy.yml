@@ -87,6 +87,26 @@ jobs:
           TF_VAR_newrelic_external_id: ${{ secrets.TF_VAR_NEWRELIC_EXTERNAL_ID }}
         run: terraform init -upgrade
 
+      - name: Import drifted IAM resources (idempotent)
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_newrelic_license_key: ${{ secrets.TF_VAR_NEWRELIC_LICENSE_KEY }}
+          TF_VAR_newrelic_external_id: ${{ secrets.TF_VAR_NEWRELIC_EXTERNAL_ID }}
+        run: |
+          # Import IAM policy if it exists in AWS but not in state
+          POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='NewRelic-CloudWatch-Integration-Policy'].Arn" --output text)
+          if [ -n "$POLICY_ARN" ]; then
+            echo "Importing NewRelic-CloudWatch-Integration-Policy → $POLICY_ARN"
+            terraform import aws_iam_policy.newrelic_cloudwatch_policy "$POLICY_ARN" || echo "Already in state, skipping."
+          fi
+
+          # Import IAM role if it exists in AWS but not in state
+          ROLE_EXISTS=$(aws iam get-role --role-name NewRelic-LogForwarder-Lambda-Role --query "Role.RoleName" --output text 2>/dev/null || echo "")
+          if [ -n "$ROLE_EXISTS" ]; then
+            echo "Importing NewRelic-LogForwarder-Lambda-Role"
+            terraform import aws_iam_role.newrelic_lambda_role NewRelic-LogForwarder-Lambda-Role || echo "Already in state, skipping."
+          fi
+
       - name: Terraform Validate
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
