@@ -10,9 +10,9 @@ inclusion: always
 |-----------|------------|
 | Cloud | AWS |
 | IaC | Terraform |
-| Application | Spring PetClinic |
-| Runtime | Java 17, Spring Boot |
-| Deployment | Direct on EC2 (no containers) |
+| Application | [Application Name] |
+| Runtime | [Runtime Environment] |
+| Deployment | [Deployment Method] |
 
 ---
 
@@ -21,14 +21,14 @@ inclusion: always
 | Component | Terraform Resource | Description |
 |-----------|-------------------|-------------|
 | VPC | `aws_vpc` | Main VPC for infrastructure |
-| Public Subnets | `aws_subnet` | Two public subnets across AZs |
-| Route Tables | `aws_route_table` | Routes for public subnets |
+| Public Subnets | `aws_subnet` | Subnets across availability zones |
+| Route Tables | `aws_route_table` | Routes for subnets |
 | Internet Gateway | `aws_internet_gateway` | Internet connectivity |
-| Security Groups | `aws_security_group` | Network ACLs for ALB and EC2 |
-| EC2 Instances | `aws_instance` | Application servers |
-| ALB | `aws_lb` | Application Load Balancer |
+| Security Groups | `aws_security_group` | Network ACLs |
+| Compute | `aws_instance` / `aws_launch_template` | Application servers |
+| Load Balancer | `aws_lb` | Application or Network Load Balancer |
 | Target Groups | `aws_lb_target_group` | Health check and routing |
-| Listener Rules | `aws_lb_listener` | Traffic routing rules |
+| Listener | `aws_lb_listener` | Traffic routing rules |
 
 ---
 
@@ -36,9 +36,9 @@ inclusion: always
 
 ### Infrastructure Rules
 
-* All AWS resources **must** be created through Terraform
-* Manual AWS Console changes are **prohibited**
-* Infrastructure changes must be **idempotent**
+* All resources **must** be created through Terraform
+* Manual console changes are **prohibited**
+* Infrastructure must be **idempotent**
 * Resources must support **automated remediation**
 * State files must be stored remotely in production
 
@@ -68,64 +68,64 @@ infrastructure/environments/
 
 ## Networking Standards
 
-### ALB Configuration
+### Load Balancer Configuration
 
 | Setting | Value |
 |---------|-------|
-| Listener Port | 80 (HTTP) |
-| Target Port | 8080 (EC2) |
-| Health Check Path | `/` |
-| Health Check Protocol | HTTP |
+| Listener Port | [Port] |
+| Target Port | [Port] |
+| Health Check Path | [Health Endpoint] |
+| Health Check Protocol | HTTP/HTTPS |
 
 **Rules:**
-* ALB must expose HTTP port 80
-* ALB forwards traffic to EC2 port 8080
+* Load balancer must expose configured listener port
+* Load balancer forwards traffic to backend instances
 * Target groups must use health checks
-* Health checks must validate actual application endpoints
+* Health checks must match application's actual endpoints
 
 ### Security Group Rules
 
-#### ALB Security Group
+#### Load Balancer Security Group
 
 | Direction | Port | Protocol | Source | Description |
 |-----------|------|----------|--------|-------------|
-| Inbound | 80 | TCP | 0.0.0.0/0 | HTTP from internet |
+| Inbound | [Port] | TCP | Configured CIDR | Inbound traffic |
 | Outbound | All | All | 0.0.0.0/0 | All outbound |
 
 **Denied:**
-* Direct SSH access to ALB
+* Direct SSH access to load balancer
 
-#### EC2 Security Group
+#### Backend Instance Security Group
 
 | Direction | Port | Protocol | Source | Description |
 |-----------|------|----------|--------|-------------|
-| Inbound | 8080 | TCP | ALB SG ID | From ALB only |
-| Inbound | 22 | TCP | Configured CIDR | SSH for troubleshooting |
+| Inbound | [Port] | TCP | LB Security Group | From LB only |
+| Inbound | [SSH Port] | TCP | Configured CIDR | SSH for troubleshooting |
 | Outbound | All | All | 0.0.0.0/0 | All outbound |
 
 ---
 
 ## Application Standards
 
-### Spring PetClinic
+### Application Configuration
 
 | Setting | Value |
 |---------|-------|
-| Runtime | Java 17 |
-| Framework | Spring Boot |
-| Build Tool | Maven |
-| Port | 8080 |
-| Health Endpoint | `/` |
-| Deployment | Direct on EC2 |
+| Runtime | [Runtime Environment] |
+| Framework | [Framework Name] |
+| Build Tool | [Build Tool] |
+| Port | [Application Port] |
+| Health Endpoint | [Health Check Path] |
+| Deployment | [Deployment Method] |
 
 **Startup:**
-* Application started through EC2 userdata script
-* No Docker containers used
-* Maven builds artifact locally on EC2
+* Application started through userdata/init script
+* [Containerization status]
+* Build tool builds artifact locally
 
 **Expected Behavior:**
-* Application starts on port 8080
-* Health check at `/` returns HTTP 200
+* Application starts on configured port
+* Health check returns HTTP 200
 * No external dependencies required for basic health
 
 ---
@@ -134,12 +134,12 @@ infrastructure/environments/
 
 When application is unavailable, AI must validate:
 
-1. **ALB listener configuration** — Port 80, protocol HTTP
+1. **Load balancer listener configuration** — Port and protocol
 2. **Target group health** — Check `UnHealthyHostCount` metric
-3. **Health check path** — Must match `/` endpoint
-4. **EC2 application availability** — SSH and `curl localhost:8080`
-5. **Security group rules** — EC2 allows port 8080 from ALB SG
-6. **Route table configuration** — Public subnets route to IGW
+3. **Health check path** — Must match application endpoint
+4. **Backend application availability** — SSH and test local connectivity
+5. **Security group rules** — Backend allows traffic from LB security group
+6. **Route table configuration** — Subnets route to IGW/NAT
 7. **Terraform resource dependencies** — Verify `depends_on` and references
 
 ---
@@ -148,11 +148,11 @@ When application is unavailable, AI must validate:
 
 | Scenario | Symptom | Root Cause | Remediation |
 |----------|---------|------------|-------------|
-| Wrong health check path | HTTP 503, targets unhealthy | `health_check_path` variable mismatch | Update `terraform.tfvars` → `health_check_path = "/"` |
-| Wrong target port | Connection timeout | `app_port` misconfiguration | Update `terraform.tfvars` → `app_port = 8080` |
-| Security group misconfig | Connection refused | EC2 SG blocks ALB ingress | Update `security_groups.tf` → allow port 8080 from ALB SG |
-| Route table misconfig | No internet access | Missing IGW route | Update `vpc.tf` → add route to IGW |
-| UserData failure | App not starting | Script errors | Check `userdata.sh` and EC2 logs |
+| Wrong health check path | HTTP 503, targets unhealthy | Health check path mismatch | Update `terraform.tfvars` → correct health check path |
+| Wrong target port | Connection timeout | Port misconfiguration | Update `terraform.tfvars` → correct port |
+| Security group misconfig | Connection refused | Backend SG blocks LB ingress | Update `security_groups.tf` → allow port from LB SG |
+| Route table misconfig | No internet access | Missing IGW/NAT route | Update `vpc.tf` → add route |
+| UserData failure | App not starting | Script errors | Check userdata/init script and logs |
 
 ---
 
@@ -195,15 +195,15 @@ All infrastructure changes require:
 1. **Git branch creation** — `git checkout -b fix/<issue>`
 2. **Git commit** — Format: `fix: <issue description>`
 3. **Terraform apply** — `terraform apply` after merge
-4. **Validation testing** — Confirm fix with `curl` or console
+4. **Validation testing** — Confirm fix with test command or console
 
 **Example workflow:**
 ```bash
-git checkout -b fix/alb-healthcheck-path
+git checkout -b fix/<issue>
 # Edit terraform.tfvars
 git add infrastructure/environments/dev/terraform.tfvars
-git commit -m "fix: corrected ALB health check path"
-git push -u origin fix/alb-healthcheck-path
+git commit -m "fix: corrected [issue]"
+git push -u origin fix/<issue>
 ```
 
 ---
@@ -215,12 +215,12 @@ After remediation, AI must validate:
 | Check | Command | Expected Result |
 |-------|---------|-----------------|
 | Target group healthy | AWS Console → Target Groups | Status: healthy |
-| ALB accessible | `curl http://<alb-dns>` | HTTP 200 OK |
-| Application UI | Browser access | Page loads successfully |
+| Load balancer accessible | `curl -I http://<lb-dns>` | HTTP 200 OK |
+| Application functional | API/Browser access | Service responds correctly |
 
 **Validation command example:**
 ```bash
-curl -I http://<alb-dns>
+curl -I http://<lb-dns>
 ```
 
 Expected result: `HTTP/1.1 200 OK`
@@ -229,7 +229,7 @@ Expected result: `HTTP/1.1 200 OK`
 
 ## AI Operational Behavior
 
-Kiro AI responsibilities:
+AI responsibilities:
 
 * Analyze Terraform code for misconfigurations
 * Detect infrastructure drift from expected state
@@ -242,12 +242,12 @@ Kiro AI responsibilities:
 * Reference actual Terraform file paths
 * Use exact variable names from `variables.tf`
 * Include specific `terraform plan` and `terraform apply` commands
-* Validate with `curl` commands against ALB DNS
+* Validate with test commands against load balancer DNS
 * Check `terraform.tfstate` for resource IDs when needed
 
 **Do Not:**
 * Suggest manual AWS Console changes
-* Recommend Docker/containerization for this application
+* Recommend containerization unless explicitly requested
 * Skip GitOps workflow for any change
 * Omit validation steps from remediation
 * Modify state files directly
@@ -270,4 +270,4 @@ This environment is designed for:
 * GitOps workflow for infrastructure changes
 * RCA methodology for cloud incidents
 * Security group troubleshooting
-* ALB and target group health checks
+* Load balancer and target group health checks

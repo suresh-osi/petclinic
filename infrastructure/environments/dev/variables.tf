@@ -1,7 +1,7 @@
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.small"
 }
 
 variable "aws_region" {
@@ -140,4 +140,23 @@ variable "ec2_egress_cidr" {
   description = "CIDR block allowed for EC2 egress"
   type        = string
   default     = "0.0.0.0/0"
+}
+
+variable "newrelic_external_id" {
+  description = "External ID for NewRelic IAM role trust policy"
+  type        = string
+  default     = ""
+}
+
+variable "newrelic_license_key" {
+  description = "NewRelic Ingest License Key for log forwarding"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "newrelic_account_id" {
+  description = "NewRelic Account ID"
+  type        = string
+  default     = "8131360"
 }
