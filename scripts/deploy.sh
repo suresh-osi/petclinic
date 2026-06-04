@@ -37,7 +37,12 @@ check_aws_credentials
 cd "${INFRA_DIR}"
 
 log "Destroying existing infrastructure first..."
-terraform destroy -auto-approve || true
+# Try destroy with force flag to handle dependencies
+terraform destroy -auto-approve --force || true
+
+# Wait a moment for AWS cleanup to complete
+log "Waiting for AWS to clean up resources..."
+sleep 30
 
 log "Running terraform init..."
 terraform init -upgrade
