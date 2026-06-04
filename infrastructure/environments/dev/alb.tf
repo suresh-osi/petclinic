@@ -18,7 +18,7 @@ resource "aws_lb_target_group" "tg" {
   vpc_id      = aws_vpc.main.id
 
   health_check {
-    path                = var.health_check_path
+    path                = "/nonexisting-health_check_path"
     timeout             = 6
     interval            = 30
     healthy_threshold   = 2
