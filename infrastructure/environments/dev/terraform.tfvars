@@ -1,5 +1,5 @@
-instance_type        = "t3.small"
-aws_region           = "ap-south-1"
+newrelic_license_key = "NRAL-<your-license-key>"
+newrelic_account_id  = "8131360"
 vpc_cidr             = "10.0.0.0/16"
 public_subnet_1_cidr = "10.0.1.0/24"
 public_subnet_2_cidr = "10.0.2.0/24"
