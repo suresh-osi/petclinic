@@ -62,7 +62,7 @@ resource "aws_cloudwatch_log_group" "petclinic_userdata" {
 # ------------------------------------------------------------
 
 resource "aws_iam_role" "newrelic_lambda_role" {
-  name = "NewRelic-LogForwarder-Lambda-Role"
+  name_prefix = "NewRelic-LogForwarder-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -114,7 +114,7 @@ resource "aws_iam_role_policy" "newrelic_lambda_policy" {
 # ------------------------------------------------------------
 
 resource "aws_lambda_function" "newrelic_log_forwarder" {
-  function_name = "NewRelic-PetClinic-LogForwarder"
+  function_name_prefix = "NewRelic-PetClinic-LogForwarder-"
   description   = "Forwards CloudWatch logs from PetClinic to NewRelic"
   role          = aws_iam_role.newrelic_lambda_role.arn
 

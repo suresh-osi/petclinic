@@ -15,8 +15,8 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "aws_iam_role" "cloudwatch_agent_role" {
-  name = "${var.ec2_name_tag}-cloudwatch-agent-role"
-
+  name_prefix = "petclinic-server-"
+  
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -37,7 +37,8 @@ resource "aws_iam_role_policy_attachment" "cloudwatch_agent_policy" {
 }
 
 resource "aws_iam_instance_profile" "cloudwatch_agent_profile" {
-  name = "${var.ec2_name_tag}-cloudwatch-agent-profile"
+  name_prefix = "petclinic-server-"
+  
   role = aws_iam_role.cloudwatch_agent_role.name
 }
 
@@ -59,7 +60,7 @@ resource "aws_instance" "petclinic" {
 
 # NewRelic IAM Role for CloudWatch Integration
 resource "aws_iam_role" "newrelic_cloudwatch_role" {
-  name = "NewRelic-CloudWatch-Integration-Role"
+  name_prefix = "NewRelic-CloudWatch-Integration-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -86,7 +87,7 @@ resource "aws_iam_role_policy_attachment" "newrelic_cloudwatch_policy" {
 }
 
 resource "aws_iam_policy" "newrelic_cloudwatch_policy" {
-  name        = "NewRelic-CloudWatch-Integration-Policy"
+  name_prefix = "NewRelic-CloudWatch-Integration-"
   description = "Policy to allow NewRelic to read CloudWatch Logs, Metrics, and EC2 metadata"
 
   policy = jsonencode({
