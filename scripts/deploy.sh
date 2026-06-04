@@ -36,6 +36,9 @@ check_aws_credentials
 
 cd "${INFRA_DIR}"
 
+log "Destroying existing infrastructure first..."
+terraform destroy -auto-approve || true
+
 log "Running terraform init..."
 terraform init -upgrade
 

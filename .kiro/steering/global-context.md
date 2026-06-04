@@ -210,62 +210,35 @@ AI responsibilities:
 
 ---
 
-## New Relic Log Querying
+## New Relic Log Fetching
 
-### Key Types — Critical Distinction
+**All New Relic log fetching scripts are located in `d:\Workspace\petclinic\scripts\`:**
 
-| Key | Variable | Prefix | Purpose |
-|-----|----------|--------|---------|
-| Ingest / License Key | `newrelic_license_key` | `NRAL-...` | **Send** logs/metrics TO New Relic (write-only) |
-| User API Key | `newrelic_user_api_key` | `NRAK-...` | **Query** logs/metrics FROM New Relic (read) |
+| Script | Purpose |
+|--------|---------|
+| `fetch_latest_logs.py` | Fetch latest 100 log entries from last 15 minutes |
+| `fetch_error_logs.py` | Fetch ERROR logs from the last hour |
+| `fetch_nr_logs.py` | Fetch recent logs (30 min) |
 
 ### When User Asks for New Relic Logs
 
 When the user says "get logs from New Relic", "fetch New Relic logs", or any variation:
 
-1. Read `infrastructure/environments/dev/terraform.tfvars`
-2. Look for `newrelic_user_api_key` (starts with `NRAK-`) — this is the query key
-3. Read `newrelic_account_id` from the same file
-4. Query via New Relic GraphQL API using PowerShell:
+1. **Run the Python script** from `d:\Workspace\petclinic\scripts\`:
+   - `fetch_latest_logs.py` — get latest 100 logs from last 15 minutes
+   - `fetch_error_logs.py` — get ERROR logs from last hour
+   - `fetch_nr_logs.py` — get recent logs from last 30 minutes
 
-```powershell
-$headers = @{ "API-Key" = "<NRAK-key>"; "Content-Type" = "application/json" }
-$body = '{"query":"{ actor { account(id: <account_id>) { nrql(query: \"FROM Log SELECT message, logGroup, timestamp WHERE logGroup LIKE \\u0027petclinic/%\\u0027 SINCE 30 minutes ago LIMIT 20\") { results } } } }"}'
-Invoke-RestMethod -Uri "https://api.newrelic.com/graphql" -Method POST -Headers $headers -Body $body
-```
+2. Execute with Python:
+   ```bash
+   python d:\Workspace\petclinic\scripts\fetch_latest_logs.py
+   ```
 
-### Log Groups Available
+3. The script contains embedded credentials (`USER_API_KEY` and `ACCOUNT_ID`) and queries New Relic GraphQL API directly.
 
-| Log Group | Contents |
-|-----------|----------|
-| `petclinic/application-logs` | Spring Boot application logs |
-| `petclinic/userdata-logs` | EC2 startup / setup script logs |
-| `petclinic/apache-access-logs` | Apache HTTP access logs |
-| `petclinic/apache-error-logs` | Apache HTTP error logs |
+4. Output is formatted with log groups, severity indicators, and summary counts.
 
-### NRQL Query Examples
-
-```sql
--- All petclinic logs (last 30 min)
-FROM Log SELECT message, logGroup, timestamp
-WHERE logGroup LIKE 'petclinic/%'
-SINCE 30 minutes ago LIMIT 50
-
--- Application logs only
-FROM Log SELECT message, timestamp
-WHERE logGroup = 'petclinic/application-logs'
-SINCE 1 hour ago LIMIT 50
-
--- Error logs only
-FROM Log SELECT message, timestamp
-WHERE logGroup LIKE 'petclinic/%' AND message LIKE '%ERROR%'
-SINCE 1 hour ago LIMIT 20
-```
-
-### If NRAK key is missing
-- Ask the user: "Please add your New Relic User API key (`NRAK-...`) to `terraform.tfvars` as `newrelic_user_api_key`"
-- The ingest key (`NRAL-...`) cannot be used for querying — they are different keys
-- User API key location: [one.newrelic.com](https://one.newrelic.com) → top-right name → API Keys → Create key (type: User)
+**Important:** Always use the Python scripts in the `scripts/` folder — do NOT use PowerShell commands.
 
 ---
 
