@@ -26,7 +26,7 @@ resource "aws_lb_target_group" "tg" {
   }
 
   tags = {
-    Name        = "petclinic-tg"
+    Name        = var.target_group_name
     Environment = var.environment
   }
 }

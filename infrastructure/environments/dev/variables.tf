@@ -148,3 +148,21 @@ variable "ubuntu_ami_filter" {
   type        = string
   default     = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
 }
+
+variable "ssh_cidr" {
+  description = "CIDR allowed for SSH access to EC2"
+  type        = string
+  default     = "0.0.0.0/0"
+}
+
+variable "target_group_name" {
+  description = "Name of the ALB target group"
+  type        = string
+  default     = "petclinic-tg"
+}
+variable "newrelic_user_api_key" {
+  description = "NewRelic User API Key for log forwarding"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
