@@ -14,8 +14,9 @@ ec2_name_tag         = "petclinic-server"
 ssh_cidr             = "0.0.0.0/0"
 ubuntu_ami_owner     = "099720109477"
 ubuntu_ami_filter    = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
-newrelic_external_id = ""
-newrelic_account_id  = "8131360"
+newrelic_external_id  = ""
+newrelic_account_id   = "8131360"
+newrelic_user_api_key = "NRAK-E9LJJLLCDJ4UW490Q2QE1ID12UJ"
 
 # newrelic_license_key is injected at deploy time via GitHub Actions secret
 # TF_VAR_NEWRELIC_LICENSE_KEY — do not add it here

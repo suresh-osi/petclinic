@@ -160,3 +160,10 @@ variable "newrelic_account_id" {
   type        = string
   default     = "8131360"
 }
+
+variable "newrelic_user_api_key" {
+  description = "NewRelic User API Key for querying logs"
+  type        = string
+  sensitive   = true
+  default     = "NRAK-E9LJJLLCDJ4UW490Q2QE1ID12UJ"
+}

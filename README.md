@@ -227,6 +227,7 @@ All infrastructure settings are parameterized in `variables.tf`. You can overrid
 | `newrelic_external_id` | `""` | External ID for NewRelic IAM role trust policy |
 | `newrelic_license_key` | `""` | NewRelic Ingest License Key for log forwarding (sensitive) |
 | `newrelic_account_id` | `8131360` | NewRelic Account ID |
+| `newrelic_user_api_key` | `"<YOUR_NRAK_API_KEY>"` | NewRelic User API Key for querying logs (starts with `NRAK-`) |
 
 Example — deploy to a different region with a larger instance:
 
@@ -234,11 +235,24 @@ Example — deploy to a different region with a larger instance:
 terraform apply -var="aws_region=us-east-1" -var="instance_type=t3.small"
 ```
 
+### Terraform State Backend
+
+Terraform state is stored remotely in S3 for the dev environment:
+
+| Setting | Value |
+|---------|-------|
+| Bucket | `petclinic-tfstate-633426742056` |
+| Key | `environments/dev/terraform.tfstate` |
+| Region | `ap-south-1` |
+| Encryption | Enabled (SSE) |
+
+> **Note:** The S3 bucket must exist before running `terraform init`. State locking is not configured — consider adding a DynamoDB lock table for team environments.
+
 ### Deploying
 
 ```bash
 cd infrastructure/environments/dev
-terraform init
+terraform init   # initializes and configures the S3 backend
 terraform apply
 ```
 
@@ -279,7 +293,14 @@ When correctly configured, the ALB target group health check uses path `/`, whic
 
 ### NewRelic Integration
 
-NewRelic can be integrated with this infrastructure to monitor CloudWatch metrics. To enable:
+NewRelic can be integrated with this infrastructure for log monitoring. Two key types are used:
+
+| Key Type | Variable | Prefix | Purpose |
+|----------|----------|--------|---------|
+| **Ingest Key** | `newrelic_license_key` | `NRAL-...` | Send logs/metrics TO New Relic (write-only) |
+| **User API Key** | `newrelic_user_api_key` | `NRAK-...` | Query logs FROM New Relic (read) |
+
+#### Enable Log Forwarding (CloudWatch → NewRelic)
 
 1. Follow the setup steps in [`newrelic-setup.md`](infrastructure/environments/dev/newrelic-setup.md)
 2. Set the required variables in `terraform.tfvars`:
@@ -289,7 +310,7 @@ newrelic_external_id = "YOUR-EXTERNAL-ID-HERE"
 newrelic_account_id  = "YOUR-ACCOUNT-ID"
 ```
 
-For the license key (sensitive), use an environment variable instead of `terraform.tfvars`:
+3. For the license key (sensitive), use an environment variable:
 
 ```bash
 export TF_VAR_newrelic_license_key="YOUR-LICENSE-KEY"
@@ -298,7 +319,18 @@ terraform apply
 
 The NewRelic CloudWatch integration role ARN is available in Terraform outputs after apply.
 
-**Note:** `newrelic_license_key` is marked `sensitive = true` — never commit it to source control. With an empty `newrelic_external_id` (the default), the IAM trust policy will not allow NewRelic to assume the role.
+#### Query Logs from New Relic
+
+To query logs programmatically or in the New Relic UI, add your User API Key:
+
+```hcl
+newrelic_user_api_key = "NRAK-YOUR-USER-API-KEY"
+```
+
+**Note:**
+- `newrelic_license_key` is marked `sensitive = true` — never commit it to source control
+- `newrelic_user_api_key` is for read-only queries — use for debugging and log exploration
+- With an empty `newrelic_external_id` (the default), the IAM trust policy will not allow NewRelic to assume the role
 
 For more details, see the [NewRelic AWS integration documentation](https://docs.newrelic.com/docs/aws-integrations/).
 
