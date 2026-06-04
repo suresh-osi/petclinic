@@ -114,7 +114,7 @@ resource "aws_iam_role_policy" "newrelic_lambda_policy" {
 # ------------------------------------------------------------
 
 resource "aws_lambda_function" "newrelic_log_forwarder" {
-  function_name_prefix = "NewRelic-PetClinic-LogForwarder-"
+  function_name = "NewRelic-PetClinic-LogForwarder"
   description   = "Forwards CloudWatch logs from PetClinic to NewRelic"
   role          = aws_iam_role.newrelic_lambda_role.arn
 

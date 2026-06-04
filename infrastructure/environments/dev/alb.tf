@@ -12,7 +12,7 @@ resource "aws_lb" "alb" {
 }
 
 resource "aws_lb_target_group" "tg" {
-  name_prefix = "petclinic-tg-"
+  name_prefix = "tg-"
   port        = var.app_port
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id

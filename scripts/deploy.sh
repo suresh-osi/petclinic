@@ -40,6 +40,11 @@ log "Destroying existing infrastructure first..."
 # Destroy all resources including force flag
 terraform destroy -auto-approve --force || true
 
+# Explicitly delete any remaining Lambda functions (Terraform destroy may not clean them fast enough)
+log "Deleting any remaining Lambda functions..."
+aws lambda delete-function --function-name NewRelic-PetClinic-LogForwarder --region ap-south-1 || true
+aws lambda delete-function --function-name NewRelic-PetClinic-LogForwarder-abc --region ap-south-1 || true
+
 # Wait 2 minutes for AWS to fully clean up all resources
 log "Waiting for AWS to fully clean up all resources (this can take several minutes)..."
 for i in $(seq 1 12); do
