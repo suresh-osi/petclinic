@@ -12,10 +12,10 @@ resource "aws_lb" "alb" {
 }
 
 resource "aws_lb_target_group" "tg" {
-  name     = var.target_group_name
-  port     = var.app_port
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.main.id
+  name_prefix = "petclinic-tg-"
+  port        = var.app_port
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
 
   health_check {
     path                = var.health_check_path
@@ -23,6 +23,11 @@ resource "aws_lb_target_group" "tg" {
     interval            = 30
     healthy_threshold   = 2
     unhealthy_threshold = 3
+  }
+
+  tags = {
+    Name        = "petclinic-tg"
+    Environment = var.environment
   }
 }
 
