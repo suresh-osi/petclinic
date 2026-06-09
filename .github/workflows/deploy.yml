@@ -61,12 +61,56 @@ jobs:
           retention-days: 7
 
   # -----------------------------------------------------------------------
-  # JOB 2: Deploy JAR to EC2 via S3 + SSM
+  # JOB 2: Security Scan (SCA + IaC)
+  # -----------------------------------------------------------------------
+  security-scan:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'adopt'
+          cache: maven
+
+      - name: Make Maven wrapper executable
+        run: chmod +x mvnw
+
+      - name: Generate dependency tree
+        run: ./mvnw -B dependency:tree --no-transfer-progress
+
+      - name: Run Trivy - Dependency Scan (SCA)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          format: 'table'
+
+      - name: Run Trivy - IaC Misconfiguration Scan
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: 'config'
+          scan-ref: 'infrastructure/'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          format: 'table'
+
+  # -----------------------------------------------------------------------
+  # JOB 3: Deploy JAR to EC2 via S3 + SSM
   # -----------------------------------------------------------------------
   deploy:
     name: Deploy to EC2 (${{ github.event.inputs.environment || 'dev' }})
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, security-scan]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     environment: dev
 
