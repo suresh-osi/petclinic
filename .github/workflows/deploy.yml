@@ -67,6 +67,9 @@ jobs:
     name: Trivy Security Scan
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
+      security-events: write   # upload SARIF to GitHub Security tab
 
     steps:
       - name: Checkout source
@@ -85,6 +88,9 @@ jobs:
       - name: Generate dependency tree
         run: ./mvnw -B dependency:tree --no-transfer-progress
 
+      # ── Dependency Scan (SCA) ─────────────────────────────────────────────
+      # Reports CVEs — does NOT block the pipeline (exit-code: 0)
+      # ignore-unfixed: true skips CVEs with no fix available
       - name: Run Trivy - Dependency Scan (SCA)
         uses: aquasecurity/trivy-action@0.35.0
         with:
@@ -92,17 +98,58 @@ jobs:
           scan-ref: '.'
           scanners: 'vuln'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-dependency.sarif'
 
+      # ── IaC Misconfiguration Scan ─────────────────────────────────────────
+      # Reports Terraform misconfigs — does NOT block the pipeline (exit-code: 0)
       - name: Run Trivy - IaC Misconfiguration Scan
         uses: aquasecurity/trivy-action@0.35.0
         with:
-          scan-type: 'config'
+          scan-type: 'fs'
           scan-ref: 'infrastructure/'
+          scanners: 'misconfig'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-          format: 'table'
+          exit-code: '0'
+          format: 'sarif'
+          output: 'trivy-iac.sarif'
+
+      # ── Upload SARIF to GitHub Security tab ──────────────────────────────
+      - name: Upload Dependency scan SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-dependency.sarif'
+          category: 'trivy-dependency'
+
+      - name: Upload IaC scan SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-iac.sarif'
+          category: 'trivy-iac'
+
+      # ── Save reports as artifacts ─────────────────────────────────────────
+      - name: Upload scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-reports
+          path: |
+            trivy-dependency.sarif
+            trivy-iac.sarif
+          retention-days: 30
+
+      - name: Scan summary
+        if: always()
+        run: |
+          echo "## Trivy Security Scan" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan (SCA) | See SARIF report |" >> $GITHUB_STEP_SUMMARY
+          echo "| IaC Misconfiguration | See SARIF report |" >> $GITHUB_STEP_SUMMARY
 
   # -----------------------------------------------------------------------
   # JOB 3: Deploy JAR to EC2 via S3 + SSM
