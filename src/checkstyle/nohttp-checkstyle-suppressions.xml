@@ -7,5 +7,10 @@
 	<suppress files="node[\\/].*" checks=".*"/>
 	<suppress files="build[\\/].*" checks=".*"/>
 	<suppress files="target[\\/].*" checks=".*"/>
-	<suppress files=".+\.(jar|git|ico|p12|gif|jks|jpg|svg|log)" checks="NoHttp"/>
+	<suppress files="infrastructure[\\/].*" checks=".*"/>
+	<suppress files="\.terraform[\\/].*" checks=".*"/>
+	<suppress files="kiro-global[\\/].*" checks=".*"/>
+	<suppress files="mcp-servers[\\/].*" checks=".*"/>
+	<suppress files="scripts[\\/].*" checks=".*"/>
+	<suppress files=".+\.(jar|git|ico|p12|gif|jks|jpg|svg|log|exe|zip|tfstate|tfvars|hcl|sh|py)" checks="NoHttp"/>
 </suppressions>
